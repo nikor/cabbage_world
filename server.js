@@ -28,17 +28,17 @@ server.on('upgrade', function (request, socket, head) {
     }
 });
 
-var clients = [];
+var clients = {};
 fs.watch('./public', (eventType, filename) => {
     console.log("watch", eventType, filename);
-    clients.forEach(ws => {
+    Object.values(clients).forEach(ws => {
         ws.send(JSON.stringify({type: "reload"}));
     });
 });
 
 var nPlayers = 0;
 var state = {
-    players: [],
+    players: {},
     map: [
         [0,0,0],
         [0,0,0]
@@ -47,78 +47,38 @@ var state = {
 var inputState = [];
 
 function updateState() {
+
 }
 
 setInterval(updateState, 10);
 
 function sendState() {
     var tempState = JSON.stringify({type: "state", data: state});
-    clients.forEach(ws => {
+    Object.values(clients).forEach(ws => {
         ws.send(tempState);
     });
     setTimeout(sendState,10);
 }
 sendState();
 
-var uuidToId = {};
-var idToUuid = [];
-
 function createUuid() {
     var uuid = null;
     do {
         uuid = 'K' + Math.floor(Math.random() * 100000);
-    } while(uuidToId[uuid]);
+    } while(uuid in clients);
     return uuid;
-}
-
-function sendId(uuid) {
-    uuidToId[uuid].ws.send(JSON.stringify({
-        type: "id",
-        data: {id: uuidToId[uuid].id}
-    }));
 }
 
 wss.on('connection', function connection(ws) {
     var uuid = createUuid();
-
-    uuidToId[uuid] = { id: nPlayers, ws: ws };
-    nPlayers += 1;
-    var x = (Math.random() - 0.5) * 2;
-    var y = (Math.random() - 0.5) * 2;
-
-
-    idToUuid.push(uuid);
-    clients.push(ws);
+    clients[uuid] = ws;
 
     ws.on('message', function incoming(message) {
-        var me = uuidToId[uuid].id;
-        if (message) {
-            console.log(message);
-        }
+        console.log("message from ", uuid, message);
     });
     ws.on('close', () => {
-        var lplayer = state.players.pop();
-        var luuid   = idToUuid.pop();
-        var linput  = inputState.pop();
-        var lclient = clients.pop();
-        nPlayers -= 1;
-
-        if (luuid != uuid) {
-            var me = uuidToId[uuid].id;
-
-            state.players[me]   = lplayer;
-            idToUuid[me]        = luuid;
-            inputState[me]      = linput;
-            clients[me]         = lclient;
-
-            uuidToId[luuid].id  = me;
-            sendId(luuid)
-            //uuidToId[luuid].ws.send(JSON.stringify({id: uuidToId[luuid].id}));
-        }
-        delete uuidToId[uuid];
+        delete clients[uuid];
     });
-    sendId(uuid)
-    //ws.send(JSON.stringify({id: uuidToId[uuid].id}));
 });
 
 server.listen(8080);

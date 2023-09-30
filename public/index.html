@@ -18,7 +18,7 @@ function wsStarup() {
     var mws = new WebSocket("ws://" + window.location.host + "/ws");
     mws.onopen = function (e) {
         ws = mws;
-        console.log('open', e)
+        //console.log('open', e)
         ws.send('yo!');
     }
     mws.onmessage = function (e) {
