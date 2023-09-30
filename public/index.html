@@ -4,6 +4,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Go Game!</title>
 <script>
+let map = {
+    'arrow': "arrow.png",
+    'dead': "dead.png",
+    0: "forrest.png",
+    1: "player.png",
+    2: "bad-grass.png"
+};
+
+var touchKeys = {
+    'up'    : {pos: [-100, -150], rot: 0},
+    'down'  : {pos: [-100, -70] , rot: 2},
+    'left'  : {pos: [70, -100]  , rot: 1},
+    'right' : {pos: [150, -100] , rot: 3}
+}
+let buttonW = 80;
+let buttonH = 80;
 
 var state = null;
 var ws = null;
@@ -31,11 +47,6 @@ function wsStarup() {
     }
 }
 
-let map = {
-    0: "forrest.png",
-    1: "player.png",
-    2: "bad-grass.png"
-};
 
 let imageMap = { };
 function initImageMap() {
@@ -56,20 +67,59 @@ function drawRotated(canvas, ctx, image, angle, x, y) {
     ctx.rotate(angle * Math.PI/2);
     ctx.translate(-x, -y);
 }
+
+let frame = 0;
 function draw() {
+    frame += 1;
     let canvas = document.getElementById("canvas");
+    let w = window.innerWidth;
+    let h = window.innerHeight;
+    if (canvas.width != w) {
+        canvas.width = w;
+    }
+    if (canvas.height != h) {
+        canvas.height = h;
+    }
     const ctx = canvas.getContext("2d");
     if (state) {
-        state.map.forEach((row,y) => row.forEach((e,x) => {
-            if (e.id in imageMap) {
-                drawRotated(canvas,ctx,imageMap[e.id], e.rot, 32 + 64 * x, 32 + 64 * y);
-            }
-        }));
+        state.map.forEach((row,yy) => {
+            let y = yy - state.map.length/2;
+            row.forEach((e,xx) => {
+                let x = xx - row.length/2;
+                if (e.id in imageMap) {
+                    drawRotated(
+                        canvas, ctx, imageMap[e.id], e.rot,
+                        32 + w/2 + 64 * x,
+                        32 + h/2 + 64 * y
+                    );
+                }
+            })
+        });
+        if (state.dead) {
+            drawRotated(canvas, ctx, imageMap['dead'],
+                Math.sin(frame/10)/8,
+                w/2 + Math.random() * 10,
+                h/2 + Math.random() * 10
+            );
+        } else {
+            let bw = buttonW;
+            let bh = buttonH;
+            Object.values(touchKeys).forEach(x => {
+                let pos = x.pos;
+                let rot = x.rot
+                drawRotated(
+                    canvas, ctx, imageMap['arrow'], rot,
+                    (w + pos[0]) % w, (h + pos[1]) % h
+                );
+                //ctx.strokeRect((w + pos[0] - bw/2) % w, (h + pos[1] - bh/2) % h, bw, bh);
+            });
+        }
     }
     requestAnimationFrame(() => draw());
 }
 
 function myInput(inn) {
+    console.log("send", inn)
     ws.send(JSON.stringify({type:"input", data: inn}));
 }
 
@@ -88,30 +138,61 @@ function keyboardStarup() {
     });
 }
 
+function touch(e) {
+    if (state && state.dead) {
+        console.log('----');
+        myInput('respawn');
+    } else {
+        var canvas = document.getElementById("canvas");
+        let w = canvas.width;
+        let h = canvas.height;
+        let x = e.clientX;
+        let y = e.clientY;
+        let bw = buttonW;
+        let bh = buttonH;
+        Object.keys(touchKeys).forEach(k => {
+            let pos = touchKeys[k].pos;
+            let tx = (w + pos[0]) % w;
+            let ty = (h + pos[1]) % h;
+            if (
+                tx - bw/2 < x && x < tx + bw/2 &&
+                ty - bh/2 < y && y < ty + bh/2
+                ) {
+                myInput(k);
+            }
+        });
+    }
+}
+
+function touchStartup() {
+    var canvas = document.getElementById("canvas");
+    canvas.addEventListener("click", touch, false);
+}
 
 function myStartup() {
     initImageMap();
     keyboardStarup();
     wsStarup();
     draw();
+    touchStartup();
+}
+
+function goFullScreen(){
+    var canvas = document.getElementById("canvas");
+    if (canvas.requestFullScreen) {
+        canvas.requestFullScreen();
+    } else if (canvas.webkitRequestFullScreen) {
+        canvas.webkitRequestFullScreen();
+    } else if(canvas.mozRequestFullScreen) {
+        canvas.mozRequestFullScreen();
+    }
 }
 
 window.addEventListener("load", myStartup, false);
 
 </script>
 </head>
-<body>
-<div style="
-    display: flex; 
-    flex-direction: column;
-">
-    <canvas id="canvas" style="width: 320px; height: 320px" width="320" height="320" ></canvas>
-    <div>
-        <button onclick="myInput('up')">up</button>
-        <button onclick="myInput('down')">down</button>
-        <button onclick="myInput('left')">left</button>
-        <button onclick="myInput('right')">right</button>
-    </div>
-</div>
+<body style="margin: 0px">
+    <canvas id="canvas" style="width: 100%; height: 100%"></canvas>
 </body>
 </html>
