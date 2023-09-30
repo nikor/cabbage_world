@@ -60,6 +60,16 @@ function add(p1, p2) {
 
 function updateState() {
     Object.keys(inputState).forEach(k => {
+        if (clients[k].life <= 0) {
+            delete inputState[k];
+            return;
+        }
+        let crot = {
+            'down': 0,
+            'right': 1,
+            'up': 2,
+            'left': 3
+        };
         let cmap = {
             'up': [0,-1],
             'down': [0,1],
@@ -67,11 +77,24 @@ function updateState() {
             'right': [1,0]
         };
         let v = inputState[k];
-        if (v in cmap) {
+        if (crot[v] != clients[k].rot) {
+            clients[k].rot = crot[v];
+        } else if (v in cmap) {
             var players = playerPositions();
             var newPos = add(clients[k].pos, cmap[v]);
-            if (! (genPosKey(newPos) in players)) {
-            clients[k].pos = newPos;
+            var newPosK = genPosKey(newPos);
+            if (newPosK in players) {
+                //attack player
+                var l = players[newPosK].life;
+                players[newPosK].life = l <= 0 ? 0 : l-1;
+            } else if (! (newPosK in map)) {
+                map[newPosK] = 0;
+            } else if (map[newPosK] == 0) {
+                map[newPosK] = 2;
+            } else if (map[newPosK] == 2) {
+                clients[k].pos = newPos;
+            } else {
+                console.log("dont know how to updateState", map[newPosK]);
             }
         } else {
             console.log("unknown input for", k, v);
@@ -82,17 +105,17 @@ function updateState() {
 
 setInterval(updateState, 10);
 
-function generateMap(players, ix, iy) {
+function generateMap(players, pos) {
     let out = [];
     for (var y = -2; y <= 2; y += 1) {
         out.push([]);
         for (var x = -2; x <= 2; x += 1) {
-            var k = genPosKey([ix + x, iy + y]);
+            var k = genPosKey([pos[0] + x, pos[1] + y]);
             if (k in players) {
-                out[out.length-1].push(1);
+                out[out.length-1].push({id: 1, rot: players[k].rot});
             } else {
                 var o = k in map ? map[k] : 0;
-                out[out.length-1].push(o);
+                out[out.length-1].push({id: o, rot: 0});
             }
         }
     }
@@ -100,23 +123,32 @@ function generateMap(players, ix, iy) {
 }
 function playerPositions() {
     return Object.values(clients).reduce((acc, c) => {
-        acc[genPosKey(c.pos)] = 1;
+        if (c.life > 0) {
+            acc[genPosKey(c.pos)] = c;
+        }
         return acc
     }, {});
 }
 
 function sendState() {
     var players = playerPositions();
-    console.log(players);
     Object.values(clients).forEach(c => {
         var tempState = JSON.stringify({type: "state", data: {
-            map: generateMap(players,2,2)
+            map: generateMap(players, c.pos)
         }});
         c.ws.send(tempState);
     });
     setTimeout(sendState,10);
 }
 sendState();
+
+function growTrees() {
+    var keys = Object.keys(map)
+    var l = keys.length -1;
+    delete map[keys[Math.floor(Math.random() * l)]];
+    setTimeout(growTrees,50000/(l + 2));
+}
+growTrees();
 
 function createUuid() {
     var uuid = null;
@@ -139,10 +171,15 @@ function findStartPos() {
 }
 wss.on('connection', function connection(ws) {
     var uuid = createUuid();
+    var sPos = findStartPos();
     clients[uuid] = {
         ws: ws,
-        pos: findStartPos()
+        pos: sPos,
+        life: 3,
+        rot: 0
     };
+    //Destroy tree on spawnin
+    map[genPosKey(sPos)] = 2;
 
     ws.on('message', function incoming(message) {
         let msg = {};
