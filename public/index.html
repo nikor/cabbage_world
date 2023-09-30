@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Go Game!</title>
 <script>
 
@@ -19,7 +20,7 @@ function wsStarup() {
     mws.onopen = function (e) {
         ws = mws;
         //console.log('open', e)
-        ws.send('yo!');
+        ws.send(JSON.stringify({type: 'debug', data: 'yo!'}));
     }
     mws.onmessage = function (e) {
         let m = JSON.parse(e.data);
@@ -38,15 +39,17 @@ function wsStarup() {
     }
 }
 let map = {
-    0: "bad-grass.png"
+    0: "forrest.png",
+    1: "player.png",
+    2: "bad-grass.png"
 };
 
 let imageMap = { };
 function initImageMap() {
-    Object.keys(map).forEach(k => {
+    Object.keys(map).forEach((k) => {
         const img = new Image();
         img.onload = () => imageMap[k] = img;
-        img.src = "bad-grass.png";
+        img.src = map[k];
     });
 }
 
@@ -70,9 +73,30 @@ function myStartup() {
 }
 
 window.addEventListener("load", myStartup, false);
+
+function myInput(inn) {
+    ws.send(JSON.stringify({type:"input", data: inn}));
+    /*
+    console.log('ou',inn)
+    let t = document.getElementById("test");
+    t.innerHTML = inn;
+    */
+}
 </script>
 </head>
 <body>
-<canvas id="canvas" width="200" height="200" ></canvas>
+<div style="
+    display: flex; 
+    flex-direction: column;
+">
+    <canvas id="canvas" style="width: 320px; height: 320px" width="320" height="320" ></canvas>
+    <div id="test">lo</div>
+    <div>
+        <button onclick="myInput('up')">up</button>
+        <button onclick="myInput('down')">down</button>
+        <button onclick="myInput('left')">left</button>
+        <button onclick="myInput('right')">right</button>
+    </div>
+</div>
 </body>
 </html>
