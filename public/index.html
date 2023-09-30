@@ -5,14 +5,6 @@
 <title>Go Game!</title>
 <script>
 
-function draw() {
-  const ctx = document.getElementById("canvas").getContext("2d");
-  const img = new Image();
-  img.onload = () => {
-    ctx.drawImage(img, 0, 0);
-  };
-  img.src = "backdrop.png";
-}
 var state = null;
 var ws = null;
 function wsStarup() {
@@ -38,6 +30,7 @@ function wsStarup() {
         setTimeout(wsStarup, 1000);
     }
 }
+
 let map = {
     0: "forrest.png",
     1: "player.png",
@@ -53,35 +46,58 @@ function initImageMap() {
     });
 }
 
+function drawRotated(canvas, ctx, image, angle, x, y) {
+    var width = image.width;
+    var height = image.height;
+
+    ctx.translate(x, y);
+    ctx.rotate(angle * -Math.PI/2);
+    ctx.drawImage(image, -width / 2, -height / 2, width, height);
+    ctx.rotate(angle * Math.PI/2);
+    ctx.translate(-x, -y);
+}
 function draw() {
     let canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
     if (state) {
         state.map.forEach((row,y) => row.forEach((e,x) => {
-            if (e in imageMap) {
-                ctx.drawImage(imageMap[e], 64 * x, 64 * y);
+            if (e.id in imageMap) {
+                drawRotated(canvas,ctx,imageMap[e.id], e.rot, 32 + 64 * x, 32 + 64 * y);
             }
         }));
     }
     requestAnimationFrame(() => draw());
 }
 
+function myInput(inn) {
+    ws.send(JSON.stringify({type:"input", data: inn}));
+}
+
+var keys = {
+    'KeyA': 'left',
+    'KeyS': 'down',
+    'KeyD': 'right',
+    'KeyW': 'up'
+};
+
+function keyboardStarup() {
+    document.addEventListener('keydown', (e) => {
+        if (e.code in keys && e.repeat == false) {
+            myInput(keys[e.code]);
+        }
+    });
+}
+
+
 function myStartup() {
     initImageMap();
+    keyboardStarup();
     wsStarup();
     draw();
 }
 
 window.addEventListener("load", myStartup, false);
 
-function myInput(inn) {
-    ws.send(JSON.stringify({type:"input", data: inn}));
-    /*
-    console.log('ou',inn)
-    let t = document.getElementById("test");
-    t.innerHTML = inn;
-    */
-}
 </script>
 </head>
 <body>
@@ -90,7 +106,6 @@ function myInput(inn) {
     flex-direction: column;
 ">
     <canvas id="canvas" style="width: 320px; height: 320px" width="320" height="320" ></canvas>
-    <div id="test">lo</div>
     <div>
         <button onclick="myInput('up')">up</button>
         <button onclick="myInput('down')">down</button>
