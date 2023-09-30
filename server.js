@@ -107,9 +107,10 @@ setInterval(updateState, 10);
 
 function generateMap(players, pos) {
     let out = [];
-    for (var y = -2; y <= 2; y += 1) {
+    let size = 7;
+    for (var y = -size; y <= size; y += 1) {
         out.push([]);
-        for (var x = -2; x <= 2; x += 1) {
+        for (var x = -size; x <= size; x += 1) {
             var k = genPosKey([pos[0] + x, pos[1] + y]);
             if (k in players) {
                 out[out.length-1].push({id: 1, rot: players[k].rot});
