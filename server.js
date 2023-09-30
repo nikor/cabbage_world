@@ -60,7 +60,11 @@ function add(p1, p2) {
 
 function updateState() {
     Object.keys(inputState).forEach(k => {
+        let v = inputState[k];
         if (clients[k].life <= 0) {
+            if (v == 'respawn') {
+                Object.assign(clients[k], defaultClient());
+            }
             delete inputState[k];
             return;
         }
@@ -76,7 +80,6 @@ function updateState() {
             'left': [-1,0],
             'right': [1,0]
         };
-        let v = inputState[k];
         if (crot[v] != clients[k].rot) {
             clients[k].rot = crot[v];
         } else if (v in cmap) {
@@ -135,7 +138,8 @@ function sendState() {
     var players = playerPositions();
     Object.values(clients).forEach(c => {
         var tempState = JSON.stringify({type: "state", data: {
-            map: generateMap(players, c.pos)
+            map: generateMap(players, c.pos),
+            dead: c.life <= 0
         }});
         c.ws.send(tempState);
     });
@@ -170,17 +174,22 @@ function findStartPos() {
     }
     return [x,y];
 }
+function defaultClient() {
+    var sPos = findStartPos();
+    map[genPosKey(sPos)] = 2;
+    return {
+        life: 3,
+        pos: sPos,
+        rot: 0
+    }
+};
+
 wss.on('connection', function connection(ws) {
     var uuid = createUuid();
-    var sPos = findStartPos();
-    clients[uuid] = {
+    clients[uuid] = Object.assign({
         ws: ws,
-        pos: sPos,
-        life: 3,
-        rot: 0
-    };
+    }, defaultClient());
     //Destroy tree on spawnin
-    map[genPosKey(sPos)] = 2;
 
     ws.on('message', function incoming(message) {
         let msg = {};
