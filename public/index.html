@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>Go Game!</title>
+<script>
+
+function draw() {
+  const ctx = document.getElementById("canvas").getContext("2d");
+  const img = new Image();
+  img.onload = () => {
+    ctx.drawImage(img, 0, 0);
+  };
+  img.src = "backdrop.png";
+}
+var state = null;
+var ws = null;
+function wsStarup() {
+    var mws = new WebSocket("ws://" + window.location.host + "/ws");
+    mws.onopen = function (e) {
+        ws = mws;
+        console.log('open', e)
+        ws.send('yo!');
+    }
+    mws.onmessage = function (e) {
+        let m = JSON.parse(e.data);
+        if (m.type == "id") {
+            me = m.data.id;
+        } else if (m.type == "state") {
+            state = m.data;
+        } else if (m.type == "reload") {
+            location.reload();
+        } else {
+            console.log("unknow message", m);
+        }
+    }
+    mws.onclose = function (e) {
+        setTimeout(wsStarup, 1000);
+    }
+}
+let map = {
+    0: "bad-grass.png"
+};
+
+let imageMap = { };
+function initImageMap() {
+    Object.keys(map).forEach(k => {
+        const img = new Image();
+        img.onload = () => imageMap[k] = img;
+        img.src = "bad-grass.png";
+    });
+}
+
+function draw() {
+    let canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    if (state) {
+        state.map.forEach((row,y) => row.forEach((e,x) => {
+            if (e in imageMap) {
+                ctx.drawImage(imageMap[e], 64 * x, 64 * y);
+            }
+        }));
+    }
+    requestAnimationFrame(() => draw());
+}
+
+function myStartup() {
+    initImageMap();
+    wsStarup();
+    draw();
+}
+
+window.addEventListener("load", myStartup, false);
+</script>
+</head>
+<body>
+<canvas id="canvas" width="200" height="200" ></canvas>
+</body>
+</html>
