@@ -91,6 +91,32 @@ function numberToImg(n) {
 }
 
 let frame = 0;
+function drawTile(ctx, e, x, y, w, h, now) {
+    let mills = 1000;
+    if (e.attackAnimation) {
+        mills = (new Date(now)) - (new Date(e.attackAnimation));
+    }
+
+    if (e.id in imageMap && mills < 100) {
+        let dir = [[0,1],[1,0],[0,-1],[-1,0]];
+        let r = e.rot + (e.shake ? Math.sin(frame/1)/10 : 0);
+        let ax = dir[e.rot][0] * mills/10;
+        let ay = dir[e.rot][1] * mills/10;
+        drawRotated(
+            canvas, ctx, imageMap[e.id], r,
+            32 + w/2 + 64 * x + ax,
+            32 + h/2 + 64 * y + ay
+        );
+    } else if (e.id in imageMap) {
+        let r = e.rot + (e.shake ? Math.sin(frame/1)/10 : 0);
+        drawRotated(
+            canvas, ctx, imageMap[e.id], r,
+            32 + w/2 + 64 * x,
+            32 + h/2 + 64 * y
+        );
+    }
+}
+
 function draw() {
     frame += 1;
     let canvas = document.getElementById("canvas");
@@ -110,14 +136,7 @@ function draw() {
             let y = yy - state.map.length/2;
             row.forEach((e,xx) => {
                 let x = xx - row.length/2;
-                if (e.id in imageMap) {
-                    let r = e.rot + (e.shake ? Math.sin(frame/1)/10 : 0);
-                    drawRotated(
-                        canvas, ctx, imageMap[e.id], r,
-                        32 + w/2 + 64 * x,
-                        32 + h/2 + 64 * y
-                    );
-                }
+                drawTile(ctx, e, x, y, w, h, state.now);
             })
         });
         var kns = numberToImg(state.kills);
