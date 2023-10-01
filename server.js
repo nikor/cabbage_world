@@ -36,18 +36,11 @@ fs.watch('./public', (eventType, filename) => {
     });
 });
 
-
 function genPosKey(p) {
     return p[0] + "_" + p[1];
 }
-function setMapPos(p,state) {
-    map[genPosKey(p)] = state;
-}
 
 var map = {};
-var grass = [
-    [0,0], [1,0], [0,1], [0,2], [0,3], [0,4]
-].forEach((x) => setMapPos(x,2));
 
 var inputState = {};
 
@@ -59,6 +52,19 @@ function add(p1, p2) {
 }
 
 function updateState() {
+    //trees
+    var now = new Date();
+    var newTrees = Object.keys(map).filter(k => 'tree' in map[k] && now - map[k].tree > 3000);
+    var players = playerPositions();
+    newTrees.forEach(k => {
+        if (players[k]) {
+            players[k].life = 0;
+            players[k].deaths += 1;
+        }
+        delete map[k];
+    });
+
+    //input
     Object.keys(inputState).forEach(k => {
         let v = inputState[k];
         if (clients[k].life <= 0) {
@@ -90,11 +96,16 @@ function updateState() {
                 //attack player
                 var l = players[newPosK].life;
                 players[newPosK].life = l <= 0 ? 0 : l-1;
+                if (players[newPosK].life < 1) {
+                    clients[k].kills += 10;
+                    players[newPosK].deaths += 1;
+                }
             } else if (! (newPosK in map)) {
-                map[newPosK] = 0;
-            } else if (map[newPosK] == 0) {
-                map[newPosK] = 2;
-            } else if (map[newPosK] == 2) {
+                map[newPosK] = {state: 0};
+            } else if (map[newPosK].state == 0) {
+                clients[k].kills += 1;
+                map[newPosK] = {state: 2};
+            } else if (map[newPosK].state == 2) {
                 clients[k].pos = newPos;
             } else {
                 console.log("dont know how to updateState", map[newPosK]);
@@ -116,10 +127,15 @@ function generateMap(players, pos) {
         for (var x = -size; x <= size; x += 1) {
             var k = genPosKey([pos[0] + x, pos[1] + y]);
             if (k in players) {
-                out[out.length-1].push({id: 1, rot: players[k].rot});
+                out[out.length-1].push({
+                    id: 1,
+                    rot: players[k].rot,
+                    shake: (k in map && 'tree' in map[k])
+                });
             } else {
-                var o = k in map ? map[k] : 0;
-                out[out.length-1].push({id: o, rot: 0});
+                var o = k in map ? map[k].state : 0;
+                var oo = {id: o, rot: 0, shake: (k in map && 'tree' in map[k])};
+                out[out.length-1].push(oo);
             }
         }
     }
@@ -139,7 +155,10 @@ function sendState() {
     Object.values(clients).forEach(c => {
         var tempState = JSON.stringify({type: "state", data: {
             map: generateMap(players, c.pos),
-            dead: c.life <= 0
+            dead: c.life == 0,
+            splash: c.life == -1,
+            kills: c.kills,
+            deaths: c.deaths
         }});
         c.ws.send(tempState);
     });
@@ -148,9 +167,13 @@ function sendState() {
 sendState();
 
 function growTrees() {
-    var keys = Object.keys(map)
-    var l = keys.length -1;
-    delete map[keys[Math.floor(Math.random() * l)]];
+    let keys = Object.keys(map);
+    let l = keys.length -1;
+    let k = keys[Math.floor(Math.random() * l)];
+    if (k in map) {
+        map[k]['tree'] = new Date();
+    }
+
     setTimeout(growTrees,50000/(l + 2));
 }
 growTrees();
@@ -176,7 +199,12 @@ function findStartPos() {
 }
 function defaultClient() {
     var sPos = findStartPos();
-    map[genPosKey(sPos)] = 2;
+    //Destroy tree on spawnin
+    for (var x = -1; x <= 1; x += 1) {
+        for (var y = -1; y <= 1; y += 1) {
+            map[genPosKey(add(sPos, [x, y]))] = {state: 2};
+        }
+    }
     return {
         life: 3,
         pos: sPos,
@@ -186,10 +214,14 @@ function defaultClient() {
 
 wss.on('connection', function connection(ws) {
     var uuid = createUuid();
-    clients[uuid] = Object.assign({
+    clients[uuid] = {
         ws: ws,
-    }, defaultClient());
-    //Destroy tree on spawnin
+        kills: 0,
+        deaths: 0,
+        life: -1,
+        pos: [0,0],
+        rot: 0
+    };
 
     ws.on('message', function incoming(message) {
         let msg = {};
