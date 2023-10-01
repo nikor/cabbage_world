@@ -190,8 +190,8 @@ function sendState() {
 sendState();
 
 function growTrees() {
-    let keys = Object.keys(map).filter(x => map[x].state != 0);
-    let l = keys.length -1;
+    let keys = Object.keys(map).filter(x => map[x].state != 0 && !map[x].tree);
+    let l = keys.length;
     let k = keys[Math.floor(Math.random() * l)];
     if (k in map) {
         map[k]['tree'] = new Date();
