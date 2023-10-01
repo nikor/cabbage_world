@@ -86,14 +86,16 @@ function updateState() {
             'left': [-1,0],
             'right': [1,0]
         };
-        if (crot[v] != clients[k].rot) {
-            clients[k].rot = crot[v];
-        } else if (v in cmap) {
+        if (v in cmap) {
             var players = playerPositions();
             var newPos = add(clients[k].pos, cmap[v]);
             var newPosK = genPosKey(newPos);
-            if (newPosK in players) {
+            if (crot[v] != clients[k].rot) {
+                //rotate
+                clients[k].rot = crot[v];
+            } else if (newPosK in players) {
                 //attack player
+                clients[k].attackAnimation = new Date().toJSON();
                 var l = players[newPosK].life;
                 players[newPosK].life = l <= 0 ? 0 : l-1;
                 if (players[newPosK].life < 1) {
@@ -101,11 +103,16 @@ function updateState() {
                     players[newPosK].deaths += 1;
                 }
             } else if (! (newPosK in map)) {
+                //attack tree
+                clients[k].attackAnimation = new Date().toJSON();
                 map[newPosK] = {state: 0};
             } else if (map[newPosK].state == 0) {
+                //attack tree
+                clients[k].attackAnimation = new Date().toJSON();
                 clients[k].kills += 1;
                 map[newPosK] = {state: 2};
             } else if (map[newPosK].state == 2) {
+                //move
                 clients[k].pos = newPos;
             } else {
                 console.log("dont know how to updateState", map[newPosK]);
@@ -119,6 +126,13 @@ function updateState() {
 
 setInterval(updateState, 10);
 
+function makeTree() {
+    return {
+        state: 0,
+        rot: Math.floor(Math.random() * 4)
+    };
+}
+
 function generateMap(players, pos) {
     let out = [];
     let size = 7;
@@ -130,11 +144,19 @@ function generateMap(players, pos) {
                 out[out.length-1].push({
                     id: 1,
                     rot: players[k].rot,
-                    shake: (k in map && 'tree' in map[k])
+                    shake: (k in map && 'tree' in map[k]),
+                    attackAnimation: players[k].attackAnimation
                 });
             } else {
-                var o = k in map ? map[k].state : 0;
-                var oo = {id: o, rot: 0, shake: (k in map && 'tree' in map[k])};
+                if (! (k in map)) {
+                    map[k] = makeTree();
+                }
+                var o = map[k].state;
+                var oo = {
+                    id: o,
+                    rot: ('rot' in map[k] ? map[k].rot : 0),
+                    shake: (k in map && 'tree' in map[k])
+                };
                 out[out.length-1].push(oo);
             }
         }
@@ -158,7 +180,8 @@ function sendState() {
             dead: c.life == 0,
             splash: c.life == -1,
             kills: c.kills,
-            deaths: c.deaths
+            deaths: c.deaths,
+            now: new Date().toJSON()
         }});
         c.ws.send(tempState);
     });
@@ -167,14 +190,14 @@ function sendState() {
 sendState();
 
 function growTrees() {
-    let keys = Object.keys(map);
+    let keys = Object.keys(map).filter(x => map[x].state != 0);
     let l = keys.length -1;
     let k = keys[Math.floor(Math.random() * l)];
     if (k in map) {
         map[k]['tree'] = new Date();
     }
 
-    setTimeout(growTrees,50000/(l + 2));
+    setTimeout(growTrees,50000/(l + 20));
 }
 growTrees();
 
@@ -208,7 +231,8 @@ function defaultClient() {
     return {
         life: 3,
         pos: sPos,
-        rot: 0
+        rot: 0,
+        attackAnimation: null
     }
 };
 
