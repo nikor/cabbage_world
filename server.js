@@ -28,7 +28,42 @@ server.on('upgrade', function (request, socket, head) {
     }
 });
 
+let rotToDir = [ [0,1], [1,0], [0,-1], [-1,0] ];
+
+function add(p1, p2) {
+    return [ p1[0] + p2[0], p1[1] + p2[1] ];
+}
+
 var clients = {};
+var golems  = {};
+function spawnGolem(player, gs) {
+    let players = playerPositions();
+    let pos = add(player.pos, rotToDir[player.rot]);
+    let k = genPosKey(pos);
+    if (gs[k]) {
+        return;
+    }
+
+    player.kills -= 10;
+
+    if (!(k in map) || map[k].state == 0 ) {
+        map[k] = {state: 2};
+    }
+    if (k in players) {
+        players[k].life = 0;
+        players[k].deaths += 1;
+        player.kills += 20;
+    }
+    let uuid = createUuid();
+    golems[uuid] = {
+        uuid: uuid,
+        pos: pos,
+        rot: player.rot,
+        life: 10,
+        attackAnimation: null
+    };
+}
+
 fs.watch('./public', (eventType, filename) => {
     console.log("watch", eventType, filename);
     Object.values(clients).forEach(c => {
@@ -44,25 +79,56 @@ var map = {};
 
 var inputState = {};
 
-function add(p1, p2) {
-    return [
-        p1[0] + p2[0],
-        p1[1] + p2[1]
-    ];
-}
-
+var count = 0;
 function updateState() {
+    var players = playerPositions();
+    var gs = golemPositions();
+    count += 1;
+    //golems
+    if ((count % 100) == 0) {
+        Object.values(golems).forEach(g => {
+            g.life -= 1;
+            if (g.life < 0) {
+                delete golems[g.uuid];
+            }
+            let npos = add(g.pos, rotToDir[g.rot]);
+            let k = genPosKey(npos);
+            if (!(k in map) || map[k].state == 0) {
+                // kill tree
+                map[k] = {state: 2};
+                g.attackAnimation = new Date().toJSON();
+            } else if (map[k].state == 2) {
+                if (players[k]) {
+                    //attack player
+                    let l = players[k].life - 1;
+                    players[k].life = l <= 0 ? 0 : l;
+                    g.attackAnimation = new Date().toJSON();
+                } else if (gs[npos]) {
+                    //attack golem?
+                } else {
+                    // move golem
+                    g.pos = npos;
+                }
+            }
+        })
+    }
+
+
     //trees
     var now = new Date();
     var newTrees = Object.keys(map).filter(k => 'tree' in map[k] && now - map[k].tree > 3000);
-    var players = playerPositions();
+    var gs = golemPositions();
     newTrees.forEach(k => {
         if (players[k]) {
             players[k].life = 0;
             players[k].deaths += 1;
         }
+        if (gs[k]) {
+            delete golems[gs[k].uuid];
+        }
         delete map[k];
     });
+
 
     //input
     Object.keys(inputState).forEach(k => {
@@ -102,8 +168,11 @@ function updateState() {
                     clients[k].kills += 10;
                     players[newPosK].deaths += 1;
                 }
+            } else if (newPosK in gs) {
+                //dont move into golem
             } else if (! (newPosK in map)) {
                 //attack tree
+                //todo merge with below case
                 clients[k].attackAnimation = new Date().toJSON();
                 map[newPosK] = {state: 0};
             } else if (map[newPosK].state == 0) {
@@ -116,6 +185,12 @@ function updateState() {
                 clients[k].pos = newPos;
             } else {
                 console.log("dont know how to updateState", map[newPosK]);
+            }
+        } else if (v == 'golem') {
+            if (clients[k].kills >= 10) {
+                spawnGolem(clients[k], gs);
+            } else {
+                console.log("not enough kill to spawn golem");
             }
         } else {
             console.log("unknown input for", k, v);
@@ -133,7 +208,7 @@ function makeTree() {
     };
 }
 
-function generateMap(players, pos) {
+function generateMap(players, golems, pos) {
     let out = [];
     let size = 7;
     for (var y = -size; y <= size; y += 1) {
@@ -146,6 +221,13 @@ function generateMap(players, pos) {
                     rot: players[k].rot,
                     shake: (k in map && 'tree' in map[k]),
                     attackAnimation: players[k].attackAnimation
+                });
+            } else if (k in golems) {
+                out[out.length-1].push({
+                    id: 1,
+                    rot: golems[k].rot,
+                    shake: (k in map && 'tree' in map[k]),
+                    attackAnimation: golems[k].attackAnimation
                 });
             } else {
                 if (! (k in map)) {
@@ -172,11 +254,19 @@ function playerPositions() {
     }, {});
 }
 
+function golemPositions() {
+    return Object.values(golems).reduce((acc, g) => {
+        acc[genPosKey(g.pos)] = g;
+        return acc
+    }, {});
+}
+
 function sendState() {
     var players = playerPositions();
+    var golems = golemPositions();
     Object.values(clients).forEach(c => {
         var tempState = JSON.stringify({type: "state", data: {
-            map: generateMap(players, c.pos),
+            map: generateMap(players, golems, c.pos),
             dead: c.life == 0,
             splash: c.life == -1,
             kills: c.kills,
@@ -205,7 +295,7 @@ function createUuid() {
     var uuid = null;
     do {
         uuid = 'K' + Math.floor(Math.random() * 100000);
-    } while(uuid in clients);
+    } while(uuid in clients || uuid in golems);
     return uuid;
 }
 

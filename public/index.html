@@ -17,6 +17,7 @@ let map = {
 Array(10).fill(1).map((x,i) => {
     map['n' + i] = i + '.png';
 })
+var golemButton = {pos: [ -100, -240 ]};
 
 var touchKeys = {
     'up'    : {pos: [-100, -150], rot: 0},
@@ -117,6 +118,23 @@ function drawTile(ctx, e, x, y, w, h, now) {
     }
 }
 
+function drawKill(ctx) {
+    var kns = numberToImg(state.kills);
+    var dns = numberToImg(state.deaths);
+    var l = Math.max(kns.length, dns.length);
+    ctx.fillRect(5, 5, 75 + l * 12, 48);
+    ctx.strokeRect(5, 5, 75 + l * 12, 48);
+    drawRotated(canvas, ctx, imageMap['kill'], 0, 60, 20);
+    drawRotated(canvas, ctx, imageMap['death'], 0, 60, 36);
+
+    kns.forEach((n,i) => {
+        drawRotated(canvas, ctx, imageMap[n], 0, 80 + i * 12, 20);
+    });
+    dns.forEach((n,i) => {
+        drawRotated(canvas, ctx, imageMap[n], 0, 80 + i * 12, 36);
+    });
+}
+
 function draw() {
     frame += 1;
     let canvas = document.getElementById("canvas");
@@ -139,28 +157,8 @@ function draw() {
                 drawTile(ctx, e, x, y, w, h, state.now);
             })
         });
-        var kns = numberToImg(state.kills);
-        var dns = numberToImg(state.deaths);
-        var l = Math.max(kns.length, dns.length);
-        ctx.fillRect(5, 5, 75 + l * 12, 48);
-        ctx.strokeRect(5, 5, 75 + l * 12, 48);
-        drawRotated(canvas, ctx, imageMap['kill'], 0, 60, 20);
-        drawRotated(canvas, ctx, imageMap['death'], 0, 60, 36);
+        drawKill(ctx);
 
-        kns.forEach((n,i) => {
-            drawRotated(canvas, ctx, imageMap[n], 0, 80 + i * 12, 20);
-        });
-        dns.forEach((n,i) => {
-            drawRotated(canvas, ctx, imageMap[n], 0, 80 + i * 12, 36);
-        });
-        /*
-        for (var i = 0; i < 10; i += 1) {
-            drawRotated(canvas, ctx, imageMap['n' + i], 0, 80 + i * 12, 36);
-        }
-        for (var i = 0; i < 10; i += 1) {
-            drawRotated(canvas, ctx, imageMap['n' + i], 0, 80 + i * 12, 20);
-        }
-        */
         if (state.splash) {
             drawRotated(canvas, ctx, imageMap['splash'], 0, w/2, h/2 -20);
         } else if (state.dead) {
@@ -179,8 +177,16 @@ function draw() {
                     canvas, ctx, imageMap['arrow'], rot,
                     (w + pos[0]) % w, (h + pos[1]) % h
                 );
-                //ctx.strokeRect((w + pos[0] - bw/2) % w, (h + pos[1] - bh/2) % h, bw, bh);
             });
+            if (state.kills >= 10) {
+                let g = golemButton.pos; 
+                drawRotated(
+                    canvas, ctx, imageMap['1'], 2,
+                    (w + g[0]) % w, (h + g[1]) % h
+                );
+                ctx.strokeRect(w + g[0]  - 64/2, h + g[1] - 64/2, 64, 64);
+
+            }
         }
     }
     requestAnimationFrame(() => draw());
@@ -207,15 +213,20 @@ function keyboardStarup() {
 }
 
 function touch(e) {
+    let x = e.clientX;
+    let y = e.clientY;
+    var canvas = document.getElementById("canvas");
+    let w = canvas.width;
+    let h = canvas.height;
     if (state && (state.dead || state.splash)) {
-        console.log('----');
-        myInput('respawn');
+        let s = 160;
+        if (
+             w/2 - s < x && x < w/2 + s &&
+             h/2 - s < y && y < h/2 + s
+        ) {
+            myInput('respawn');
+        }
     } else {
-        var canvas = document.getElementById("canvas");
-        let w = canvas.width;
-        let h = canvas.height;
-        let x = e.clientX;
-        let y = e.clientY;
         let bw = buttonW;
         let bh = buttonH;
         Object.keys(touchKeys).forEach(k => {
@@ -229,7 +240,17 @@ function touch(e) {
                 myInput(k);
             }
         });
-    }
+        let pos = golemButton.pos; 
+        let tx = (w + pos[0]) % w;
+        let ty = (h + pos[1]) % h;
+        if (
+            tx - bw/2 < x && x < tx + bw/2 &&
+            ty - bh/2 < y && y < ty + bh/2
+            ) {
+            myInput('golem');
+        }
+
+    } 
 }
 
 function touchStartup() {
