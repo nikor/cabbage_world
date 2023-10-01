@@ -7,10 +7,16 @@
 let map = {
     'arrow': "arrow.png",
     'dead': "dead.png",
+    'kill': "kill.png",
+    'death': "death.png",
+    'splash': "splash.png",
     0: "forrest.png",
     1: "player.png",
     2: "bad-grass.png"
 };
+Array(10).fill(1).map((x,i) => {
+    map['n' + i] = i + '.png';
+})
 
 var touchKeys = {
     'up'    : {pos: [-100, -150], rot: 0},
@@ -58,6 +64,9 @@ function initImageMap() {
 }
 
 function drawRotated(canvas, ctx, image, angle, x, y) {
+    if (!image) {
+        return;
+    }
     var width = image.width;
     var height = image.height;
 
@@ -66,6 +75,19 @@ function drawRotated(canvas, ctx, image, angle, x, y) {
     ctx.drawImage(image, -width / 2, -height / 2, width, height);
     ctx.rotate(angle * Math.PI/2);
     ctx.translate(-x, -y);
+}
+
+function numberToImg(n) {
+    if (n < 1) {
+        return ['n0'];
+    }
+    var out = [];
+    while (n >= 1) {
+        out.push('n' + (n % 10));
+        n = Math.floor(n / 10);
+    }
+    out.reverse();
+    return out;
 }
 
 let frame = 0;
@@ -81,21 +103,48 @@ function draw() {
         canvas.height = h;
     }
     const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#00841e";
+    ctx.fillRect(0, 0, w, h);
     if (state) {
         state.map.forEach((row,yy) => {
             let y = yy - state.map.length/2;
             row.forEach((e,xx) => {
                 let x = xx - row.length/2;
                 if (e.id in imageMap) {
+                    let r = e.rot + (e.shake ? Math.sin(frame/1)/10 : 0);
                     drawRotated(
-                        canvas, ctx, imageMap[e.id], e.rot,
+                        canvas, ctx, imageMap[e.id], r,
                         32 + w/2 + 64 * x,
                         32 + h/2 + 64 * y
                     );
                 }
             })
         });
-        if (state.dead) {
+        var kns = numberToImg(state.kills);
+        var dns = numberToImg(state.deaths);
+        var l = Math.max(kns.length, dns.length);
+        ctx.fillRect(5, 5, 75 + l * 12, 48);
+        ctx.strokeRect(5, 5, 75 + l * 12, 48);
+        drawRotated(canvas, ctx, imageMap['kill'], 0, 60, 20);
+        drawRotated(canvas, ctx, imageMap['death'], 0, 60, 36);
+
+        kns.forEach((n,i) => {
+            drawRotated(canvas, ctx, imageMap[n], 0, 80 + i * 12, 20);
+        });
+        dns.forEach((n,i) => {
+            drawRotated(canvas, ctx, imageMap[n], 0, 80 + i * 12, 36);
+        });
+        /*
+        for (var i = 0; i < 10; i += 1) {
+            drawRotated(canvas, ctx, imageMap['n' + i], 0, 80 + i * 12, 36);
+        }
+        for (var i = 0; i < 10; i += 1) {
+            drawRotated(canvas, ctx, imageMap['n' + i], 0, 80 + i * 12, 20);
+        }
+        */
+        if (state.splash) {
+            drawRotated(canvas, ctx, imageMap['splash'], 0, w/2, h/2 -20);
+        } else if (state.dead) {
             drawRotated(canvas, ctx, imageMap['dead'],
                 Math.sin(frame/10)/8,
                 w/2 + Math.random() * 10,
@@ -139,7 +188,7 @@ function keyboardStarup() {
 }
 
 function touch(e) {
-    if (state && state.dead) {
+    if (state && (state.dead || state.splash)) {
         console.log('----');
         myInput('respawn');
     } else {
